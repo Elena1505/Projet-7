@@ -1,7 +1,26 @@
+import gc
+import logging
+import warnings
+
+import xgboost as xgb
 import pandas as pd
 import numpy as np
-import gc
-from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, confusion_matrix
+from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, confusion_matrix, make_scorer
+from lightgbm import LGBMClassifier
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.dummy import DummyClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.svm import SVC
+from sklearn.tree import DecisionTreeClassifier
+from imblearn.over_sampling import SMOTE
+from imblearn.pipeline import Pipeline
+
+logging.basicConfig(level=logging.WARN)
+logger = logging.getLogger(__name__)
 
 
 # Preprocess application_train.csv
@@ -24,6 +43,7 @@ def application_train(num_rows=None, nan_as_category=False):
 
 
 # Buisness score
+# Assigning a weight to FN and FP
 def cost(actual, pred, TN_val=0, FN_val=10, TP_val=0, FP_val=1):
     matrix = confusion_matrix(actual, pred)
     TN = matrix[0, 0]
@@ -41,3 +61,41 @@ def eval_metrics(actual, pred):
     f1 = f1_score(actual, pred)
     bank_cost = cost(actual, pred)
     return f1, AUC, accuracy, bank_cost
+
+
+if __name__ == "__main__":
+    warnings.filterwarnings("ignore")
+
+    # Split the data into training and test sets. (0.75, 0.25) split.
+    df = application_train(10000)
+    train, test = train_test_split(df)
+
+    # The predicted column is "TARGET" (0 or 1)
+    train_x = train.drop(["TARGET"], axis=1)
+    test_x = test.drop(["TARGET"], axis=1)
+    train_y = train[["TARGET"]]
+    test_y = test[["TARGET"]]
+
+    # Pipeline that aggregates preprocessing steps (encoder + scaler + SMOTE + model)
+    steps = [("ohe", OneHotEncoder(handle_unknown="ignore")),
+             ("std", StandardScaler(with_mean=False)),
+             ("sampling", SMOTE(random_state=42, sampling_strategy=0.2)),
+             ("model", LGBMClassifier())]
+
+    pipe = Pipeline(steps)
+    pipe.fit(train_x, train_y)
+
+    # GridSearchCV that allows to choose the best model for the problem
+    param_grid = {"model": [DummyClassifier(),
+                            LogisticRegression(),
+                            LGBMClassifier(),
+                            KNeighborsClassifier(),
+                            xgb.XGBClassifier(),
+                            DecisionTreeClassifier(),
+                            RandomForestClassifier(),
+                            GaussianNB(),
+                            SVC()]}
+    score = make_scorer(cost)
+    grid = GridSearchCV(pipe, param_grid, cv=5, return_train_score=True, scoring=score)
+    grid.fit(test_x, test_y)
+    print("Best score: ", grid.best_score_, "using ", grid.best_params_)
