@@ -1,7 +1,7 @@
 import pandas as pd
 import numpy as np
 import gc
-from sklearn.metrics import roc_auc_score, f1_score, accuracy_score
+from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, confusion_matrix
 
 
 # Preprocess application_train.csv
@@ -23,9 +23,21 @@ def application_train(num_rows=None, nan_as_category=False):
     return df
 
 
+# Buisness score
+def cost(actual, pred, TN_val=0, FN_val=10, TP_val=0, FP_val=1):
+    matrix = confusion_matrix(actual, pred)
+    TN = matrix[0, 0]
+    FN = matrix[1, 0]
+    FP = matrix[0, 1]
+    TP = matrix[1, 1]
+    total_gain = TP * TP_val + TN * TN_val + FP * FP_val + FN * FN_val
+    return total_gain
+
+
 # Metrics
 def eval_metrics(actual, pred):
     accuracy = accuracy_score(actual, pred)
     AUC = roc_auc_score(actual, pred)
     f1 = f1_score(actual, pred)
-    return f1, AUC, accuracy
+    bank_cost = cost(actual, pred)
+    return f1, AUC, accuracy, bank_cost
