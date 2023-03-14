@@ -2,6 +2,7 @@ import gc
 import logging
 import warnings
 
+import mlflow.sklearn
 import xgboost as xgb
 import pandas as pd
 import numpy as np
@@ -9,7 +10,7 @@ from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, confusion_m
 from lightgbm import LGBMClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import train_test_split, GridSearchCV
+from sklearn.model_selection import train_test_split, GridSearchCV, RandomizedSearchCV
 from sklearn.dummy import DummyClassifier
 from sklearn.naive_bayes import GaussianNB
 from sklearn.neighbors import KNeighborsClassifier
@@ -18,6 +19,7 @@ from sklearn.svm import SVC
 from sklearn.tree import DecisionTreeClassifier
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline
+from scipy.stats import randint as sp_randInt
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
@@ -99,3 +101,51 @@ if __name__ == "__main__":
     grid = GridSearchCV(pipe, param_grid, cv=5, return_train_score=True, scoring=score)
     grid.fit(test_x, test_y)
     print("Best score: ", grid.best_score_, "using ", grid.best_params_)
+
+    # Start the model with mlflow
+    with mlflow.start_run():
+        # Pipeline that aggregates preprocessing steps (encoder + scaler + SMOTE + model)
+        steps_model = [("ohe", OneHotEncoder(handle_unknown="ignore")),
+                       ("std", StandardScaler(with_mean=False)),
+                       ("sampling", SMOTE(random_state=42, sampling_strategy=0.2)),
+                       ("knc", KNeighborsClassifier())]
+
+        pipe_model = Pipeline(steps_model)
+
+        # RandomizedSearchCV that allows to choose the best hyperparameters
+        param_random = {"knc__n_neighbors": sp_randInt(1, 6),
+                        "knc__weights": ["uniform", "distance"],
+                        "knc__algorithm": ["auto", "ball_tree", "kd_tree", "brute"],
+                        "knc__leaf_size": sp_randInt(10, 50),
+                        "knc__p": sp_randInt(1, 10),
+                        }
+
+        random = RandomizedSearchCV(estimator=pipe_model, param_distributions=param_random, cv=2, n_iter=10,
+                                    n_jobs=-1, scoring=score)
+        random.fit(train_x, train_y.values.ravel())
+        print("Best score: ", random.best_score_, "using ", random.best_params_)
+
+        pipe_model.set_params(**random.best_params_)
+        pipe_model.fit(train_x, train_y)
+
+        predicted_qualities = pipe_model.predict(test_x)
+
+        (f1, AUC, accuracy, bank_gain) = eval_metrics(test_y, predicted_qualities)
+
+        print("KNeighbors Classifier model using the bests hyperparameters : ")
+        print("accuracy: %s" % accuracy)
+        print("AUC: %s" % AUC)
+        print("F1 score: %s" % f1)
+        print("Bank gain: %s" % bank_gain)
+
+        mlflow.log_param("n_neighbors", random.best_params_["knc__n_neighbors"])
+        mlflow.log_param("weights", random.best_params_["knc__weights"])
+        mlflow.log_param("algorithm", random.best_params_["knc__algorithm"])
+        mlflow.log_param("leaf_size", random.best_params_["knc__leaf_size"])
+        mlflow.log_param("p", random.best_params_["knc__p"])
+
+        mlflow.log_metric("accuracy", accuracy)
+        mlflow.log_metric("AUC", AUC)
+        mlflow.log_metric("f1_score", f1)
+        mlflow.log_metric("Bank gain", bank_gain)
+
