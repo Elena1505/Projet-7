@@ -97,8 +97,7 @@ if __name__ == "__main__":
                             RandomForestClassifier(),
                             GaussianNB(),
                             SVC()]}
-    score = make_scorer(cost)
-    grid = GridSearchCV(pipe, param_grid, cv=5, return_train_score=True, scoring=score)
+    grid = GridSearchCV(pipe, param_grid, cv=5, return_train_score=True, scoring="f1")
     grid.fit(test_x, test_y)
     print("Best score: ", grid.best_score_, "using ", grid.best_params_)
 
@@ -121,7 +120,7 @@ if __name__ == "__main__":
                         }
 
         random = RandomizedSearchCV(estimator=pipe_model, param_distributions=param_random, cv=2, n_iter=10,
-                                    n_jobs=-1, scoring=score)
+                                    n_jobs=-1, scoring="f1")
         random.fit(train_x, train_y.values.ravel())
         print("Best score: ", random.best_score_, "using ", random.best_params_)
 
@@ -136,7 +135,7 @@ if __name__ == "__main__":
         print("accuracy: %s" % accuracy)
         print("AUC: %s" % AUC)
         print("F1 score: %s" % f1)
-        print("Bank gain: %s" % bank_gain)
+        print("Bank cost: %s" % bank_gain)
 
         mlflow.log_param("n_neighbors", random.best_params_["knc__n_neighbors"])
         mlflow.log_param("weights", random.best_params_["knc__weights"])
@@ -147,5 +146,4 @@ if __name__ == "__main__":
         mlflow.log_metric("accuracy", accuracy)
         mlflow.log_metric("AUC", AUC)
         mlflow.log_metric("f1_score", f1)
-        mlflow.log_metric("Bank gain", bank_gain)
-
+        mlflow.log_metric("Bank cost", bank_gain)
