@@ -61,7 +61,7 @@ def eval_metrics(actual, pred):
     accuracy = accuracy_score(actual, pred)
     AUC = roc_auc_score(actual, pred)
     f1 = f1_score(actual, pred)
-    bank_cost = cost(actual, pred)
+    bank_cost = cost(actual, pred, 0, 10, 0, 1)
     return f1, AUC, accuracy, bank_cost
 
 
@@ -131,7 +131,18 @@ if __name__ == "__main__":
 
         (f1, AUC, accuracy, bank_gain) = eval_metrics(test_y, predicted_qualities)
 
-        print("KNeighbors Classifier model using the bests hyperparameters : ")
+        # Threshold optimization
+        def optimize_threshold(clf, train_x, train_y):
+            threshold_lst = np.linspace(0.0, 1, 10)
+            cost_fct = {}
+            for threshold in threshold_lst:
+                predict = pd.Series(clf.predict_proba(train_x)[:, 1]).apply(lambda x: 0 if x < threshold else 1)
+                cost_fct[threshold] = cost(train_y, predict, 0, 10, 0, 1)
+            print("Cost list ", cost_fct)
+
+        optimize_threshold(random.best_estimator_, train_x, train_y)
+
+        print("\n KNeighbors Classifier model using the bests hyperparameters : ")
         print("accuracy: %s" % accuracy)
         print("AUC: %s" % AUC)
         print("F1 score: %s" % f1)
