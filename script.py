@@ -2,6 +2,7 @@ import gc
 import logging
 import warnings
 
+import joblib
 import mlflow.sklearn
 import xgboost as xgb
 import pandas as pd
@@ -20,6 +21,7 @@ from sklearn.tree import DecisionTreeClassifier
 from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline
 from scipy.stats import randint as sp_randInt
+from mlflow.models.signature import infer_signature
 
 logging.basicConfig(level=logging.WARN)
 logger = logging.getLogger(__name__)
@@ -52,8 +54,8 @@ def cost(actual, pred, TN_val=0, FN_val=10, TP_val=0, FP_val=1):
     FN = matrix[1, 0]
     FP = matrix[0, 1]
     TP = matrix[1, 1]
-    total_gain = TP * TP_val + TN * TN_val + FP * FP_val + FN * FN_val
-    return total_gain
+    total_cost = TP * TP_val + TN * TN_val + FP * FP_val + FN * FN_val
+    return total_cost
 
 
 # Metrics
@@ -140,6 +142,7 @@ if __name__ == "__main__":
                 cost_fct[threshold] = cost(train_y, predict, 0, 10, 0, 1)
             print("Cost list ", cost_fct)
 
+
         optimize_threshold(random.best_estimator_, train_x, train_y)
 
         print("\n KNeighbors Classifier model using the bests hyperparameters : ")
@@ -158,3 +161,15 @@ if __name__ == "__main__":
         mlflow.log_metric("AUC", AUC)
         mlflow.log_metric("f1_score", f1)
         mlflow.log_metric("Bank cost", bank_gain)
+
+        mlflow.sklearn.log_model(sk_model=random.best_estimator_, artifact_path="sklearn_model",
+                                 registered_model_name="KNeighborsClassifier")
+
+        # Serialization
+        joblib.dump(pipe_model, 'pipeline.joblib')
+
+        # Sauvegarde du modèle
+        signature = infer_signature(train_x, train_y)
+        mlflow.sklearn.save_model(pipe_model, 'mlflow_model', signature=signature)
+
+        df.to_csv('data.csv')
