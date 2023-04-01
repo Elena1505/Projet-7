@@ -69,6 +69,7 @@ def eval_metrics(actual, pred):
 
 if __name__ == "__main__":
     warnings.filterwarnings("ignore")
+    warnings.simplefilter("ignore")
 
     # Split the data into training and test sets. (0.75, 0.25) split.
     df = application_train(10000)
@@ -100,7 +101,7 @@ if __name__ == "__main__":
                             GaussianNB(),
                             SVC()]}
     grid = GridSearchCV(pipe, param_grid, cv=5, return_train_score=True, scoring="f1")
-    grid.fit(test_x, test_y)
+    grid.fit(train_x, train_y)
     print("Best score: ", grid.best_score_, "using ", grid.best_params_)
 
     # Start the model with mlflow
@@ -140,10 +141,11 @@ if __name__ == "__main__":
             for threshold in threshold_lst:
                 predict = pd.Series(clf.predict_proba(train_x)[:, 1]).apply(lambda x: 0 if x < threshold else 1)
                 cost_fct[threshold] = cost(train_y, predict, 0, 10, 0, 1)
-            print("Cost list ", cost_fct)
+            best_threshold = min(cost_fct, key=lambda k: cost_fct[k])
+            print("Cost list: ", cost_fct, ", The best threshold is: ", best_threshold)
+            return best_threshold
 
-
-        optimize_threshold(random.best_estimator_, train_x, train_y)
+        best_threshold = optimize_threshold(random.best_estimator_, train_x, train_y)
 
         print("\n KNeighbors Classifier model using the bests hyperparameters : ")
         print("accuracy: %s" % accuracy)
@@ -161,6 +163,7 @@ if __name__ == "__main__":
         mlflow.log_metric("AUC", AUC)
         mlflow.log_metric("f1_score", f1)
         mlflow.log_metric("Bank cost", bank_gain)
+        mlflow.log_param("Threshold", best_threshold)
 
         mlflow.sklearn.log_model(sk_model=random.best_estimator_, artifact_path="sklearn_model",
                                  registered_model_name="KNeighborsClassifier")
@@ -168,8 +171,13 @@ if __name__ == "__main__":
         # Serialization
         joblib.dump(pipe_model, 'pipeline.joblib')
 
-        # Sauvegarde du modèle
+        # Model backup
         signature = infer_signature(train_x, train_y)
         mlflow.sklearn.save_model(pipe_model, 'mlflow_model', signature=signature)
 
         df.to_csv('data.csv')
+        train_x.to_csv('train_x.csv')
+        train_y.to_csv('train_y.csv')
+        test_x.to_csv('test_x.csv')
+        test_y.to_csv('test_y.csv')
+
