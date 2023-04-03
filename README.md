@@ -30,7 +30,7 @@ Dans ce dépôt, vous trouverez plusieurs fichiers:
 nécessaire à l'élaboration du modèle de scoring : https://www.kaggle.com/code/jsaguiar/lightgbm-with-simple-features/script
 
 ## Packages: 
-Différents packages ont été utilisés: 
+Différents packages Python ont été utilisés: 
 
 - scikit-learn 1.0.2
 - smote 0.1
@@ -41,4 +41,12 @@ Différents packages ont été utilisés:
 - numpy 1.21.5
 - lightgbm 3.3.5
 - scipy 1.9.1
+- joblib 1.2.0
+- shap 0.41.0
+- streamlit 1.20.0
+- requests 2.28.1
+- plotly 5.9.0
+- matplotlib 3.5.2
+- json 2.0.9
+- evidently 0.2.8
 
