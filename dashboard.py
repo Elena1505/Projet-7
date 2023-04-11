@@ -2,6 +2,10 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import mlflow
+import shap
+import matplotlib.pyplot as plt
+import plotly.tools as tls
 
 df = pd.read_csv("data.csv")
 df = df.drop(["Unnamed: 0"], axis=1)
@@ -13,7 +17,7 @@ def pie_chart():
     percent_inf = 100 - percent_sup
     d = {'col1': [percent_sup, percent_inf], 'col2': ['% Non-creditworthy customer', '% Creditworthy customer', ]}
     d = pd.DataFrame(data=d)
-    fig = px.pie(d, values='col1', names='col2', title='Percentage of customer creditworthiness')
+    fig = px.pie(d, values='col1', names='col2')
     st.plotly_chart(fig)
 
 
@@ -62,17 +66,39 @@ def children_pie_chart(id, data):
     st.plotly_chart(fig)
 
 
+# Feature importances for a specific customer
+def feature_importances_customer(index):
+    model_name = "KNeighborsClassifier"
+    model_version = 18
+    model = mlflow.sklearn.load_model(model_uri=f"models:/{model_name}/{model_version}")
+    df = pd.read_csv("data.csv", nrows=10)
+    df = df.drop(["Unnamed: 0", "TARGET"], axis=1)
+    test_x = pd.read_csv("test_x.csv", nrows=2)
+    test_x = test_x.drop(["Unnamed: 0"], axis=1)
+    train_x = pd.read_csv("train_x.csv", nrows=8)
+    train_x = train_x.drop(["Unnamed: 0"], axis=1)
+    explainer = shap.KernelExplainer(model.predict, train_x)
+    data = test_x.iloc[index, :]
+    shap_values = explainer.shap_values(data)
+    st.pyplot(shap.force_plot(explainer.expected_value, shap_values, feature_names=df.columns, matplotlib=True))
+
+
 def main():
+
     st.title('Interactive dashboard')
     st.markdown("Welcome to this Interactive Dashboard! In a first part, you will find general information"
                 " about customers and features importances. In a second part you will find more specific"
                 " informations about specific customer. ")
+
+    st.markdown('**Percentage of customer creditworthiness**')
     pie_chart()
 
     st.subheader("Choose your customer and an action:")
-    id = st.text_input('Id client')
+    id = st.text_input('Choose a customer id among : 107751, 100121, 108290, 100060, 103775 or 111126')
 
     info_btn = st.button('Customer informations')
+    predict_btn = st.button('Creditworthiness prediction')
+
     if info_btn:
         data = df[df['SK_ID_CURR'] == int(id)]
         st.subheader("Main informations about the customer " + id + ":")
@@ -92,6 +118,24 @@ def main():
         years_worked(id, data)
         income(id, data)
         children_pie_chart(id, data)
+
+    if predict_btn:
+
+        st.subheader("Feature importances for the customer " + id + ":")
+        global index
+        if int(id) == 107751:
+            index = 0
+        elif int(id) == 100121:
+            index = 1
+        elif int(id) == 108290:
+            index = 2
+        elif int(id) == 100060:
+            index = 3
+        elif int(id) == 103775:
+            index = 4
+        elif int(id) == 111126:
+            index = 5
+        feature_importances_customer(index)
 
 
 if __name__ == '__main__':
