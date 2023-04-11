@@ -5,8 +5,7 @@ import plotly.graph_objects as go
 import mlflow
 import shap
 import matplotlib.pyplot as plt
-import plotly.tools as tls
-
+import pickle
 df = pd.read_csv("data.csv")
 df = df.drop(["Unnamed: 0"], axis=1)
 
@@ -19,6 +18,17 @@ def pie_chart():
     d = pd.DataFrame(data=d)
     fig = px.pie(d, values='col1', names='col2')
     st.plotly_chart(fig)
+
+
+# Feature importances
+def feature_importances():
+    df = pd.read_csv("data.csv")
+    df = df.drop(["Unnamed: 0", "TARGET", "SK_ID_CURR"], axis=1)
+    with open("shap_val.pickle", "rb") as f:
+        shap_values = pickle.load(f)
+    fig, ax = plt.subplots(figsize=(10, 10))
+    shap.summary_plot(shap_values, features=df.columns, max_display=10)
+    st.pyplot(fig)
 
 
 # Gender pie chart
@@ -80,6 +90,7 @@ def feature_importances_customer(index):
     explainer = shap.KernelExplainer(model.predict, train_x)
     data = test_x.iloc[index, :]
     shap_values = explainer.shap_values(data)
+    st.set_option('deprecation.showPyplotGlobalUse', False)
     st.pyplot(shap.force_plot(explainer.expected_value, shap_values, feature_names=df.columns, matplotlib=True))
 
 
@@ -92,6 +103,8 @@ def main():
 
     st.markdown('**Percentage of customer creditworthiness**')
     pie_chart()
+    st.markdown("**Feature importances**")
+    feature_importances()
 
     st.subheader("Choose your customer and an action:")
     id = st.text_input('Choose a customer id among : 107751, 100121, 108290, 100060, 103775 or 111126')
